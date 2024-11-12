@@ -19,48 +19,74 @@ exports.signup = async (req, res) => {
   try {
     const { fullName, email, phone } = req.body;
 
-    // Validate input
-    if (!fullName || !email || !phone) {
-      return res.status(400).json({ message: 'All fields are required' });
+    // Input validation
+    if (!email || !fullName) {
+      const error = 'Email and full name are required';
+      console.log('❌ SIGNUP VALIDATION ERROR:', { error, email, fullName });
+      return res.status(400).json({ message: error });
     }
 
     // Check if user exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
     if (existingUser) {
-      return res.status(400).json({ message: 'Email already registered' });
+      const error = 'Email already registered';
+      console.log('❌ SIGNUP USER EXISTS:', { error, email });
+      return res.status(400).json({ message: error });
     }
 
     // Generate OTP
-    const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store OTP in memory (temporary solution)
+    if (!global.signupOTPs) {
+      global.signupOTPs = new Map();
+    }
 
-    // Store OTP
-    await prisma.oTP.create({
-      data: {
-        email,
-        otp,
-        expiresAt
-      }
+    global.signupOTPs.set(email, {
+      otp,
+      fullName,
+      phone,
+      timestamp: new Date()
     });
 
-    // Send OTP
-    await sendOTP(email, otp);
-
-    console.log('✅ SIGNUP SUCCESS:', {
+    console.log('✅ OTP GENERATED:', {
       email,
       otp,
       timestamp: new Date().toISOString()
     });
+
+    // Send OTP email
+    try {
+      await sendOTP(email, otp);
+      console.log('✅ OTP EMAIL SENT:', { email });
+    } catch (emailError) {
+      console.error('❌ EMAIL SENDING ERROR:', {
+        error: emailError.message,
+        stack: emailError.stack
+      });
+      throw new Error(`Failed to send OTP: ${emailError.message}`);
+    }
+
     res.status(200).json({ 
-      message: 'OTP sent to email',
-      otp: otp 
+      message: 'OTP sent successfully',
+      email 
     });
+
   } catch (error) {
     console.error('❌ SIGNUP ERROR:', {
       error: error.message,
+      stack: error.stack,
+      body: req.body,
       timestamp: new Date().toISOString()
     });
-    res.status(500).json({ message: 'Internal server error' });
+
+    res.status(500).json({ 
+      message: 'Internal server error', 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
