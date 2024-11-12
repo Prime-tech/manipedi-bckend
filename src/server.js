@@ -8,12 +8,19 @@ dotenv.config();
 
 const app = express();
 
-// CORS configuration
+// Updated CORS configuration
 app.use(cors({
-  origin: ['http://localhost:3001', 'http://localhost:3000'], // Add your frontend URL
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://manipedi-bckend.onrender.com',
+    'https://manipedi.vercel.app',     // Add your frontend URL
+    'https://manipedi-app.vercel.app'  // Add any other frontend URLs
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  exposedHeaders: ['Authorization']
 }));
 
 // Request logger middleware
