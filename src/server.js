@@ -8,26 +8,41 @@ dotenv.config();
 
 const app = express();
 
-// Updated CORS configuration
-app.use(cors({
+// CORS Configuration
+const corsOptions = {
   origin: [
     'http://localhost:3000',
-    'http://localhost:3001',
-    'https://manipedi-bckend.onrender.com',
-    'https://manipedi.vercel.app',     // Add your frontend URL
-    'https://manipedi-app.vercel.app'  // Add any other frontend URLs
+    'https://www.manipeditime.com',
+    'https://manipeditime.com'
   ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
   exposedHeaders: ['Authorization']
-}));
+};
 
-// Request logger middleware
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Add security headers middleware
 app.use((req, res, next) => {
-  console.log(`\n🔄 ${new Date().toISOString()}`);
-  console.log(`📨 ${req.method} ${req.url}`);
-  console.log('📦 Headers:', req.headers);
+  // CORS headers
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Security headers
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('X-Frame-Options', 'DENY');
+  res.header('X-XSS-Protection', '1; mode=block');
+  res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
   next();
 });
 
