@@ -22,7 +22,8 @@
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
     "build": "yarn prisma:generate && yarn prisma:push && mkdir -p dist && cp -r src/* dist/",
-    "postbuild": "cp package.json dist/"
+    "postbuild": "cp package.json dist/",
+    "test:db": "node src/test-db.js"
   },
   "engines": {
     "node": ">=14.0.0"
