@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { sendOTP } = require('../services/email.service');
 
 const prisma = new PrismaClient();
+const otpMap = new Map();
 
 // Generate 6-digit OTP
 const generateOTP = () => {
@@ -40,129 +41,94 @@ exports.signup = async (req, res) => {
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // Store OTP in memory (temporary solution)
-    if (!global.signupOTPs) {
-      global.signupOTPs = new Map();
-    }
-
-    global.signupOTPs.set(email, {
+    // Store OTP with timestamp
+    otpMap.set(email, {
       otp,
       fullName,
       phone,
-      timestamp: new Date()
+      timestamp: new Date(),
+      attempts: 0
     });
 
-    console.log('✅ OTP GENERATED:', {
-      email,
-      otp,
-      timestamp: new Date().toISOString()
-    });
+    console.log('✅ OTP Generated:', { email, otp }); // For testing
 
     // Send OTP email
-    try {
-      await sendOTP(email, otp);
-      console.log('✅ OTP EMAIL SENT:', { email });
-    } catch (emailError) {
-      console.error('❌ EMAIL SENDING ERROR:', {
-        error: emailError.message,
-        stack: emailError.stack
-      });
-      throw new Error(`Failed to send OTP: ${emailError.message}`);
-    }
+    await sendOTP(email, otp);
 
-    res.status(200).json({ 
-      message: 'OTP sent successfully',
-      email 
-    });
-
+    res.status(200).json({ message: 'OTP sent successfully' });
   } catch (error) {
-    console.error('❌ SIGNUP ERROR:', {
-      error: error.message,
-      stack: error.stack,
-      body: req.body,
-      timestamp: new Date().toISOString()
-    });
-
-    res.status(500).json({ 
-      message: 'Internal server error', 
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    console.error('❌ Signup Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 // Verify signup OTP controller
-exports.verifySignupOTP = async (req, res) => {
-  console.log('📍 VERIFY SIGNUP REQUEST:', {
-    body: req.body,
-    timestamp: new Date().toISOString()
-  });
-
+exports.verifySignup = async (req, res) => {
   try {
-    const { email, otp, fullName, phone } = req.body;
+    const { email, otp } = req.body;
+    console.log('📍 Verify Signup Request:', { email, otp });
 
-    // Validate input
-    if (!email || !otp) {
-      return res.status(400).json({ message: 'Email and OTP are required' });
+    const storedData = otpMap.get(email);
+    console.log('📍 Stored OTP Data:', storedData);
+
+    if (!storedData) {
+      return res.status(400).json({ message: 'No OTP found for this email' });
+    }
+
+    // Check if OTP is expired (10 minutes)
+    const now = new Date();
+    const otpAge = (now - storedData.timestamp) / 1000 / 60; // in minutes
+    
+    if (otpAge > 10) {
+      otpMap.delete(email);
+      return res.status(400).json({ message: 'OTP has expired' });
+    }
+
+    // Increment attempts
+    storedData.attempts += 1;
+    if (storedData.attempts > 3) {
+      otpMap.delete(email);
+      return res.status(400).json({ message: 'Too many attempts. Please request a new OTP' });
     }
 
     // Verify OTP
-    const otpRecord = await prisma.oTP.findFirst({
-      where: {
-        email,
-        otp,
-        expiresAt: { gt: new Date() }
-      }
-    });
-
-    if (!otpRecord) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    if (storedData.otp !== otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
     }
 
-    // Create user
+    // Create user in database
     const user = await prisma.user.create({
       data: {
-        fullName: fullName,
         email: email,
-        phone: phone,
+        fullName: storedData.fullName,
+        phone: storedData.phone,
         verified: true
-      },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        phone: true
       }
     });
 
-    // Delete used OTP
-    await prisma.oTP.delete({ where: { id: otpRecord.id } });
+    // Clear OTP after successful verification
+    otpMap.delete(email);
 
-    // Generate JWT
+    // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
-    console.log('✅ VERIFY SIGNUP SUCCESS:', {
-      userId: user.id,
-      email: user.email,
-      timestamp: new Date().toISOString()
-    });
-    res.status(201).json({
+    res.status(200).json({
+      message: 'Signup successful',
       token,
       user: {
         id: user.id,
-        name: user.fullName,
         email: user.email,
-        phone: user.phone || undefined
+        fullName: user.fullName,
+        phone: user.phone
       }
     });
+
   } catch (error) {
-    console.error('❌ VERIFY SIGNUP ERROR:', {
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    console.error('❌ Verify Signup Error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

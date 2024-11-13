@@ -46,31 +46,26 @@ const sendOTP = async (email, otp) => {
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: email,
-      subject: 'Your OTP for Manipedi',
-      text: `Your OTP is: ${otp}. This OTP will expire in 10 minutes.`,
+      subject: 'Your Manipedi Verification Code',
       html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2>Welcome to Manipedi!</h2>
-          <p>Your One-Time Password (OTP) is:</p>
-          <h1 style="color: #4a90e2;">${otp}</h1>
-          <p>This OTP will expire in 10 minutes.</p>
-          <p>If you didn't request this OTP, please ignore this email.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333; text-align: center;">Welcome to Manipedi!</h2>
+          <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 16px;">Your verification code is:</p>
+            <h1 style="color: #4a90e2; text-align: center; font-size: 36px; margin: 20px 0;">${otp}</h1>
+            <p style="margin: 0; font-size: 14px; color: #666;">This code will expire in 10 minutes.</p>
+          </div>
+          <p style="color: #666; font-size: 14px; text-align: center;">
+            If you didn't request this code, please ignore this email.
+          </p>
         </div>
       `
     };
 
     await transporter.sendMail(mailOptions);
-    
-    console.log('✅ EMAIL SENT SUCCESSFULLY:', {
-      to: email,
-      timestamp: new Date().toISOString()
-    });
+    console.log('✅ OTP Email Sent:', { email });
   } catch (error) {
-    console.error('❌ EMAIL SERVICE ERROR:', {
-      error: error.message,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
-    });
+    console.error('❌ Email Error:', error);
     throw error;
   }
 };
