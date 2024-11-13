@@ -11,7 +11,7 @@ const generateOTP = () => {
 };
 
 // Signup controller
-exports.signup = async (req, res) => {
+const signup = async (req, res) => {
   console.log('📍 SIGNUP REQUEST:', {
     body: req.body,
     timestamp: new Date().toISOString()
@@ -63,7 +63,7 @@ exports.signup = async (req, res) => {
 };
 
 // Verify signup OTP controller
-exports.verifySignup = async (req, res) => {
+const verifySignup = async (req, res) => {
   try {
     const { email, otp } = req.body;
     console.log('📍 Verify Signup Request:', { email, otp });
@@ -134,7 +134,7 @@ exports.verifySignup = async (req, res) => {
 };
 
 // Login controller
-exports.login = async (req, res) => {
+const login = async (req, res) => {
   console.log('📍 LOGIN REQUEST:', {
     body: req.body,
     timestamp: new Date().toISOString()
@@ -189,7 +189,7 @@ exports.login = async (req, res) => {
 };
 
 // Verify login OTP controller
-exports.verifyLoginOTP = async (req, res) => {
+const verifyLogin = async (req, res) => {
   console.log('📍 VERIFY LOGIN REQUEST:', {
     body: req.body,
     timestamp: new Date().toISOString()
@@ -258,4 +258,12 @@ exports.verifyLoginOTP = async (req, res) => {
     });
     res.status(500).json({ message: 'Internal server error' });
   }
+};
+
+// Export all methods
+module.exports = {
+  signup,
+  verifySignup,
+  login,
+  verifyLogin
 };
