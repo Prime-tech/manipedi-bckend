@@ -70,4 +70,140 @@ const sendOTP = async (email, otp) => {
   }
 };
 
-module.exports = { sendOTP };
+const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
+  try {
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to: businessEmail,
+      subject: 'New Booking Request - Manipedi',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333;">New Booking Request</h2>
+          <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
+            <p><strong>Booking ID:</strong> ${bookingDetails.bookingId}</p>
+            <p><strong>Customer:</strong> ${bookingDetails.customerName}</p>
+            <p><strong>Service:</strong> ${bookingDetails.serviceType}</p>
+            <p><strong>Date/Time:</strong> ${new Date(bookingDetails.dateTime).toLocaleString()}</p>
+            <p><strong>Location:</strong> ${bookingDetails.zipCode}</p>
+          </div>
+          <p style="margin-top: 20px;">
+            Please respond to this request by clicking one of the following links:
+          </p>
+          <div style="text-align: center; margin-top: 20px;">
+            <a href="${process.env.FRONTEND_URL}/accept-booking/${bookingDetails.bookingId}" 
+               style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; margin-right: 10px;">
+              Accept Booking
+            </a>
+            <a href="${process.env.FRONTEND_URL}/decline-booking/${bookingDetails.bookingId}" 
+               style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none;">
+              Decline Booking
+            </a>
+          </div>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Booking Request Email Sent:', { businessEmail });
+  } catch (error) {
+    console.error('❌ Booking Email Error:', error);
+    throw error;
+  }
+};
+
+const sendBookingConfirmationEmail = async (customerEmail, bookingDetails) => {
+  try {
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to: customerEmail,
+      subject: 'Your Manipedi Booking is Confirmed!',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333;">Booking Confirmed!</h2>
+          <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
+            <p><strong>Booking ID:</strong> ${bookingDetails.bookingId}</p>
+            <p><strong>Service:</strong> ${bookingDetails.serviceType}</p>
+            <p><strong>Date/Time:</strong> ${new Date(bookingDetails.dateTime).toLocaleString()}</p>
+            <p><strong>Business:</strong> ${bookingDetails.businessName}</p>
+            <p><strong>Business Phone:</strong> ${bookingDetails.businessPhone}</p>
+          </div>
+          <p style="margin-top: 20px; color: #666;">
+            If you need to make any changes to your booking, please contact the business directly.
+          </p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Booking Confirmation Email Sent:', { customerEmail });
+  } catch (error) {
+    console.error('❌ Booking Confirmation Email Error:', error);
+    throw error;
+  }
+};
+
+const sendBusinessConfirmationEmail = async (businessEmail, bookingDetails) => {
+  try {
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to: businessEmail,
+      subject: 'Booking Confirmation - Manipedi',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333;">Booking Confirmed</h2>
+          <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
+            <p><strong>Booking ID:</strong> ${bookingDetails.bookingId}</p>
+            <p><strong>Customer:</strong> ${bookingDetails.customerName}</p>
+            <p><strong>Customer Phone:</strong> ${bookingDetails.customerPhone}</p>
+            <p><strong>Service:</strong> ${bookingDetails.serviceType}</p>
+            <p><strong>Date/Time:</strong> ${new Date(bookingDetails.dateTime).toLocaleString()}</p>
+          </div>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Business Confirmation Email Sent:', { businessEmail });
+  } catch (error) {
+    console.error('❌ Business Confirmation Email Error:', error);
+    throw error;
+  }
+};
+
+const sendBookingCancellationEmail = async (customerEmail, bookingDetails) => {
+  try {
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to: customerEmail,
+      subject: 'Booking Update - Manipedi',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333;">Booking Update</h2>
+          <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
+            <p>We're sorry, but we couldn't find an available business for your booking:</p>
+            <p><strong>Booking ID:</strong> ${bookingDetails.bookingId}</p>
+            <p><strong>Service:</strong> ${bookingDetails.serviceType}</p>
+            <p><strong>Date/Time:</strong> ${new Date(bookingDetails.dateTime).toLocaleString()}</p>
+          </div>
+          <p style="margin-top: 20px; color: #666;">
+            Please try booking again with a different time or date.
+          </p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Booking Cancellation Email Sent:', { customerEmail });
+  } catch (error) {
+    console.error('❌ Booking Cancellation Email Error:', error);
+    throw error;
+  }
+};
+
+module.exports = {
+  sendOTP,
+  sendBookingRequestEmail,
+  sendBookingConfirmationEmail,
+  sendBusinessConfirmationEmail,
+  sendBookingCancellationEmail
+};

@@ -14,8 +14,10 @@ model User {
   fullName  String
   phone     String?
   verified  Boolean  @default(false)
+  isAdmin   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  bookings  Booking[]
 
   @@map("users")
 }
@@ -26,4 +28,48 @@ model OTP {
   otp       String
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model Business {
+  id            String     @id @default(uuid())
+  name          String
+  email         String     @unique
+  contactPerson String
+  phone         String
+  zipCode       String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  bookingRequests BookingRequest[]
+
+  @@map("businesses")
+}
+
+model Booking {
+  id          String    @id @default(uuid())
+  userId      String
+  serviceType String    // "MANICURE", "PEDICURE", "BOTH"
+  dateTime    DateTime
+  zipCode     String
+  status      String    // "PENDING", "ACCEPTED", "COMPLETED", "CANCELLED"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  user        User      @relation(fields: [userId], references: [id])
+  requests    BookingRequest[]
+
+  @@map("bookings")
+}
+
+model BookingRequest {
+  id          String    @id @default(uuid())
+  bookingId   String
+  businessId  String
+  status      String    // "PENDING", "ACCEPTED", "DECLINED"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  booking     Booking   @relation(fields: [bookingId], references: [id])
+  business    Business  @relation(fields: [businessId], references: [id])
+
+  @@map("booking_requests")
 }

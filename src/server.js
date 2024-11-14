@@ -3,6 +3,9 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
+const bookingRoutes = require('./routes/booking.routes');
+const adminRoutes = require('./routes/admin.routes');
+const businessRoutes = require('./routes/business.routes');
 
 dotenv.config();
 
@@ -61,6 +64,9 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/business', businessRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {
