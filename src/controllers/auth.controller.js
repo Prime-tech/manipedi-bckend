@@ -255,10 +255,48 @@ const verifyLogin = async (req, res) => {
   }
 };
 
+// Add this new function to your existing auth.controller.js
+exports.checkAdminStatus = async (req, res) => {
+  console.log('📍 CHECK ADMIN STATUS:', {
+    userId: req.userId,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: {
+        id: true,
+        email: true,
+        isAdmin: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log('✅ ADMIN CHECK SUCCESS:', {
+      userId: user.id,
+      isAdmin: user.isAdmin,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({
+      isAdmin: user.isAdmin
+    });
+
+  } catch (error) {
+    console.error('❌ ADMIN CHECK ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // Export all methods
 module.exports = {
   signup,
   verifySignup,
   login,
-  verifyLogin
+  verifyLogin,
+  checkAdminStatus
 };
