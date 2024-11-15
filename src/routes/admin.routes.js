@@ -8,4 +8,7 @@ router.get('/bookings/pending', adminController.getPendingBookings);
 router.get('/bookings/completed', adminController.getCompletedBookings);
 router.get('/bookings/cancelled', adminController.getCancelledBookings);
 
+// Add this new route
+router.get('/dashboard/stats', adminController.getDashboardStats);
+
 module.exports = router;

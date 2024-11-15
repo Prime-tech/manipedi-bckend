@@ -164,5 +164,68 @@ const adminController = {
   }
 };
 
+// Add this new controller method
+const getDashboardStats = async (req, res) => {
+  console.log('📍 GET DASHBOARD STATS REQUEST');
+
+  try {
+    const [usersCount, businessesCount, bookingsStats] = await Promise.all([
+      // Get total users
+      prisma.user.count({
+        where: {
+          isAdmin: false // Exclude admin users
+        }
+      }),
+      // Get total businesses
+      prisma.business.count(),
+      // Get bookings by status
+      prisma.booking.groupBy({
+        by: ['status'],
+        _count: {
+          id: true
+        }
+      })
+    ]);
+
+    // Convert booking stats array to object
+    const bookingsByStatus = bookingsStats.reduce((acc, curr) => {
+      acc[curr.status] = curr._count.id;
+      return acc;
+    }, {});
+
+    // Calculate total bookings
+    const totalBookings = Object.values(bookingsByStatus).reduce((a, b) => a + b, 0);
+
+    console.log('✅ DASHBOARD STATS SUCCESS:', {
+      users: usersCount,
+      businesses: businessesCount,
+      totalBookings,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({
+      stats: {
+        users: {
+          total: usersCount
+        },
+        businesses: {
+          total: businessesCount
+        },
+        bookings: {
+          total: totalBookings,
+          ...bookingsByStatus
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ DASHBOARD STATS ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // Export the controller
-module.exports = adminController; 
+module.exports = {
+  ...adminController,
+  getDashboardStats
+}; 
