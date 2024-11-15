@@ -255,8 +255,8 @@ const verifyLogin = async (req, res) => {
   }
 };
 
-// Add this new function to your existing auth.controller.js
-exports.checkAdminStatus = async (req, res) => {
+// Add the checkAdminStatus function
+const checkAdminStatus = async (req, res) => {
   console.log('📍 CHECK ADMIN STATUS:', {
     userId: req.userId,
     timestamp: new Date().toISOString()
