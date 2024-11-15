@@ -22,7 +22,8 @@
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
     "build": "yarn prisma:generate && yarn prisma:push && mkdir -p dist && cp -r src/* dist/ && cp package.json dist/",
-    "postbuild": "cd dist && yarn install --production"
+    "postbuild": "cd dist && yarn install --production",
+    "make-admin": "node scripts/make-admin.js"
   },
   "engines": {
     "node": ">=14.0.0"

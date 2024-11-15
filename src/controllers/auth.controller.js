@@ -190,18 +190,8 @@ const login = async (req, res) => {
 
 // Verify login OTP controller
 const verifyLogin = async (req, res) => {
-  console.log('📍 VERIFY LOGIN REQUEST:', {
-    body: req.body,
-    timestamp: new Date().toISOString()
-  });
-
   try {
     const { email, otp } = req.body;
-
-    // Validate input
-    if (!email || !otp) {
-      return res.status(400).json({ message: 'Email and OTP are required' });
-    }
 
     // Verify OTP
     const otpRecord = await prisma.oTP.findFirst({
@@ -216,23 +206,28 @@ const verifyLogin = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
-    // Get user
+    // Get user with isAdmin field
     const user = await prisma.user.findUnique({
       where: { email },
       select: {
         id: true,
         fullName: true,
         email: true,
-        phone: true
+        phone: true,
+        isAdmin: true
       }
     });
 
     // Delete used OTP
     await prisma.oTP.delete({ where: { id: otpRecord.id } });
 
-    // Generate JWT
+    // Generate JWT with isAdmin claim
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { 
+        userId: user.id, 
+        email: user.email,
+        isAdmin: user.isAdmin  // Include isAdmin in token
+      },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -240,22 +235,22 @@ const verifyLogin = async (req, res) => {
     console.log('✅ VERIFY LOGIN SUCCESS:', {
       userId: user.id,
       email: user.email,
+      isAdmin: user.isAdmin,
       timestamp: new Date().toISOString()
     });
+
     res.status(200).json({
       token,
       user: {
         id: user.id,
         name: user.fullName,
         email: user.email,
-        phone: user.phone || undefined
+        phone: user.phone || undefined,
+        isAdmin: user.isAdmin  // Include isAdmin in response
       }
     });
   } catch (error) {
-    console.error('❌ VERIFY LOGIN ERROR:', {
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    console.error('❌ VERIFY LOGIN ERROR:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
