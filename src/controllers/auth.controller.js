@@ -292,11 +292,138 @@ const checkAdminStatus = async (req, res) => {
   }
 };
 
+// Add these new functions to your existing auth.controller.js
+
+const adminLogin = async (req, res) => {
+  console.log('📍 ADMIN LOGIN REQUEST:', {
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const { email } = req.body;
+
+    // Check if email is admin
+    if (email !== 'admin@manipedi.com') {
+      return res.status(403).json({ message: 'Not authorized for admin access' });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    
+    // Store OTP with timestamp
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await prisma.oTP.create({
+      data: {
+        email,
+        otp,
+        expiresAt
+      }
+    });
+
+    console.log('✅ ADMIN OTP Generated:', { email, otp }); // For testing
+
+    // Send OTP email
+    await sendOTP(email, otp);
+
+    res.status(200).json({ message: 'Admin OTP sent successfully' });
+  } catch (error) {
+    console.error('❌ Admin Login Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const verifyAdminLogin = async (req, res) => {
+  console.log('📍 VERIFY ADMIN LOGIN REQUEST:', {
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const { email, otp } = req.body;
+
+    // Verify it's the admin email
+    if (email !== 'admin@manipedi.com') {
+      return res.status(403).json({ message: 'Not authorized for admin access' });
+    }
+
+    // Verify OTP
+    const otpRecord = await prisma.oTP.findFirst({
+      where: {
+        email,
+        otp,
+        expiresAt: { gt: new Date() }
+      }
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    // Get admin user
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        isAdmin: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Admin user not found' });
+    }
+
+    // Force isAdmin to true for this specific email
+    const adminClaims = {
+      userId: user.id,
+      email: user.email,
+      isAdmin: true
+    };
+
+    // Generate JWT
+    const token = jwt.sign(
+      adminClaims,
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Delete used OTP
+    await prisma.oTP.delete({ where: { id: otpRecord.id } });
+
+    console.log('✅ ADMIN LOGIN SUCCESS:', {
+      userId: user.id,
+      email: user.email,
+      isAdmin: true,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user.id,
+        name: user.fullName,
+        email: user.email,
+        phone: user.phone || undefined,
+        isAdmin: true
+      }
+    });
+  } catch (error) {
+    console.error('❌ VERIFY ADMIN LOGIN ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // Export all methods
 module.exports = {
   signup,
   verifySignup,
   login,
   verifyLogin,
-  checkAdminStatus
+  checkAdminStatus,
+  adminLogin,
+  verifyAdminLogin
 };

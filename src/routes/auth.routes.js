@@ -5,7 +5,8 @@ const {
   verifySignup, 
   login, 
   verifyLogin,
-  checkAdminStatus 
+  adminLogin,
+  verifyAdminLogin
 } = require('../controllers/auth.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 
@@ -17,5 +18,9 @@ router.post('/verify-login', verifyLogin);
 
 // New admin check route
 router.get('/check-admin', authMiddleware, checkAdminStatus);
+
+// Admin specific routes
+router.post('/admin/login', adminLogin);
+router.post('/admin/verify-login', verifyAdminLogin);
 
 module.exports = router;
