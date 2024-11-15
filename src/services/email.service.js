@@ -1,6 +1,5 @@
 const nodemailer = require('nodemailer');
 const { OAuth2Client } = require('google-auth-library');
-const { google } = require('google-auth-library');
 
 const sendOTP = async (email, otp) => {
   console.log('📧 STARTING EMAIL SEND:', {
@@ -76,7 +75,7 @@ const createTransporter = async () => {
   try {
     console.log('📧 CREATING EMAIL TRANSPORTER');
     
-    const oauth2Client = new google.auth.OAuth2(
+    const oauth2Client = new OAuth2Client(
       process.env.GMAIL_CLIENT_ID,
       process.env.GMAIL_CLIENT_SECRET
     );
@@ -84,6 +83,8 @@ const createTransporter = async () => {
     oauth2Client.setCredentials({
       refresh_token: process.env.GMAIL_REFRESH_TOKEN
     });
+
+    console.log('🔑 OAUTH2 CLIENT CREATED');
 
     const accessToken = await oauth2Client.getAccessToken();
     console.log('✅ OAUTH2 ACCESS TOKEN OBTAINED');
@@ -96,16 +97,25 @@ const createTransporter = async () => {
         clientId: process.env.GMAIL_CLIENT_ID,
         clientSecret: process.env.GMAIL_CLIENT_SECRET,
         refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-        accessToken: accessToken.token
+        accessToken: accessToken?.token || ''
       }
     });
 
-    console.log('✅ EMAIL TRANSPORTER CREATED');
+    // Verify the transporter
+    await transporter.verify();
+    console.log('✅ EMAIL TRANSPORTER VERIFIED');
+    
     return transporter;
   } catch (error) {
     console.error('❌ FAILED TO CREATE EMAIL TRANSPORTER:', {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
+      credentials: {
+        clientId: process.env.GMAIL_CLIENT_ID ? 'Set' : 'Missing',
+        clientSecret: process.env.GMAIL_CLIENT_SECRET ? 'Set' : 'Missing',
+        refreshToken: process.env.GMAIL_REFRESH_TOKEN ? 'Set' : 'Missing',
+        user: process.env.GMAIL_USER ? 'Set' : 'Missing'
+      }
     });
     throw error;
   }
@@ -120,12 +130,11 @@ const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
 
     const transporter = await createTransporter();
     
-    // Create secure action URLs
     const acceptUrl = `${process.env.FRONTEND_URL}/business/bookings/${bookingDetails.requestId}/accept`;
     const declineUrl = `${process.env.FRONTEND_URL}/business/bookings/${bookingDetails.requestId}/decline`;
 
     const mailOptions = {
-      from: process.env.GMAIL_USER,
+      from: `"Manipedi Booking" <${process.env.GMAIL_USER}>`,
       to: businessEmail,
       subject: 'New Booking Request - Manipedi',
       html: `
