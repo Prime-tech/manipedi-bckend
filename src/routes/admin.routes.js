@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
 
-// Booking Management
+// Booking Management Routes
 router.get('/bookings', adminController.getAllBookings);
 router.get('/bookings/pending', adminController.getPendingBookings);
 router.get('/bookings/completed', adminController.getCompletedBookings);
