@@ -13,83 +13,78 @@ exports.createBooking = async (req, res) => {
   try {
     const { serviceType, dateTime, zipCode } = req.body;
 
-    // Validate input
-    if (!serviceType || !dateTime || !zipCode) {
-      return res.status(400).json({ 
-        message: 'Service type, date/time, and zip code are required' 
-      });
-    }
-
-    // Create booking
-    const booking = await prisma.booking.create({
-      data: {
-        userId: req.userId,
-        serviceType,
-        dateTime: new Date(dateTime),
-        zipCode,
-        status: 'PENDING'
-      },
-      include: {
-        user: true
-      }
-    });
-
-    // Find nearby businesses
-    const nearbyBusinesses = await prisma.business.findMany({
-      where: {
-        zipCode: zipCode // For now, exact match. We'll improve this later
-      },
-      take: 5
-    });
-
-    // Create booking requests for each business
-    const bookingRequests = await Promise.all(
-      nearbyBusinesses.map(business => 
-        prisma.bookingRequest.create({
-          data: {
-            bookingId: booking.id,
-            businessId: business.id,
-            status: 'PENDING'
-          }
-        })
-      )
-    );
-
-    // Send emails to businesses
-    await Promise.all(
-      nearbyBusinesses.map(business =>
-        sendBookingRequestEmail(business.email, {
-          bookingId: booking.id,
-          customerName: booking.user.fullName,
+    // Start a transaction
+    const result = await prisma.$transaction(async (prisma) => {
+      // 1. Create the booking
+      const booking = await prisma.booking.create({
+        data: {
+          userId: req.userId,
           serviceType,
-          dateTime,
-          zipCode
+          dateTime: new Date(dateTime),
+          zipCode,
+          status: 'PENDING'
+        },
+        include: {
+          user: true
+        }
+      });
+
+      // 2. Find nearby businesses (based on zipCode)
+      const businesses = await prisma.business.findMany({
+        where: {
+          zipCode: zipCode
+        }
+      });
+
+      // 3. Create booking requests for each business
+      const bookingRequests = await Promise.all(
+        businesses.map(async (business) => {
+          const request = await prisma.bookingRequest.create({
+            data: {
+              bookingId: booking.id,
+              businessId: business.id,
+              status: 'PENDING'
+            }
+          });
+
+          // 4. Send email to each business
+          try {
+            await sendBookingRequestEmail(business.email, {
+              bookingId: booking.id,
+              customerName: booking.user.fullName,
+              serviceType: booking.serviceType,
+              dateTime: booking.dateTime,
+              zipCode: booking.zipCode,
+              requestId: request.id // Add this for tracking
+            });
+          } catch (emailError) {
+            console.error('❌ Failed to send email to business:', {
+              businessId: business.id,
+              error: emailError.message
+            });
+            // Continue with other businesses even if email fails
+          }
+
+          return request;
         })
-      )
-    );
+      );
+
+      return { booking, bookingRequests };
+    });
 
     console.log('✅ BOOKING CREATED:', {
-      bookingId: booking.id,
-      businessCount: nearbyBusinesses.length,
+      bookingId: result.booking.id,
+      requestsSent: result.bookingRequests.length,
       timestamp: new Date().toISOString()
     });
 
     res.status(201).json({
-      message: 'Booking created successfully',
-      booking: {
-        id: booking.id,
-        serviceType,
-        dateTime,
-        zipCode,
-        status: booking.status
-      }
+      booking: result.booking,
+      message: `Booking created and sent to ${result.bookingRequests.length} businesses`
     });
 
   } catch (error) {
-    console.error('❌ CREATE BOOKING ERROR:', {
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    console.error('❌ CREATE BOOKING ERROR:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

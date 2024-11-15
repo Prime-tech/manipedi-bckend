@@ -72,6 +72,10 @@ const sendOTP = async (email, otp) => {
 
 const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
   try {
+    // Create secure action URLs
+    const acceptUrl = `${process.env.FRONTEND_URL}/business/bookings/${bookingDetails.requestId}/accept`;
+    const declineUrl = `${process.env.FRONTEND_URL}/business/bookings/${bookingDetails.requestId}/decline`;
+
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: businessEmail,
@@ -80,33 +84,36 @@ const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #333;">New Booking Request</h2>
           <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
-            <p><strong>Booking ID:</strong> ${bookingDetails.bookingId}</p>
-            <p><strong>Customer:</strong> ${bookingDetails.customerName}</p>
             <p><strong>Service:</strong> ${bookingDetails.serviceType}</p>
             <p><strong>Date/Time:</strong> ${new Date(bookingDetails.dateTime).toLocaleString()}</p>
             <p><strong>Location:</strong> ${bookingDetails.zipCode}</p>
+            <p><strong>Customer:</strong> ${bookingDetails.customerName}</p>
           </div>
-          <p style="margin-top: 20px;">
-            Please respond to this request by clicking one of the following links:
-          </p>
           <div style="text-align: center; margin-top: 20px;">
-            <a href="${process.env.FRONTEND_URL}/accept-booking/${bookingDetails.bookingId}" 
-               style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; margin-right: 10px;">
+            <a href="${acceptUrl}" 
+               style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; margin-right: 10px; border-radius: 5px;">
               Accept Booking
             </a>
-            <a href="${process.env.FRONTEND_URL}/decline-booking/${bookingDetails.bookingId}" 
-               style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none;">
+            <a href="${declineUrl}" 
+               style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
               Decline Booking
             </a>
           </div>
+          <p style="color: #666; margin-top: 20px; font-size: 14px; text-align: center;">
+            Please respond to this request as soon as possible.
+          </p>
         </div>
       `
     };
 
     await transporter.sendMail(mailOptions);
-    console.log('✅ Booking Request Email Sent:', { businessEmail });
+    console.log('✅ Booking Request Email Sent:', { 
+      businessEmail,
+      bookingId: bookingDetails.bookingId,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
-    console.error('❌ Booking Email Error:', error);
+    console.error('❌ Booking Request Email Error:', error);
     throw error;
   }
 };
