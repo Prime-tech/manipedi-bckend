@@ -136,6 +136,54 @@ const createBooking = async (req, res) => {
   }
 };
 
+const getUserBookings = async (req, res) => {
+  console.log('📍 GET USER BOOKINGS REQUEST:', {
+    userId: req.userId,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        userId: req.userId
+      },
+      include: {
+        requests: {
+          include: {
+            business: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        dateTime: 'desc'
+      }
+    });
+
+    console.log('✅ USER BOOKINGS RETRIEVED:', {
+      userId: req.userId,
+      bookingsCount: bookings.length,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({ bookings });
+  } catch (error) {
+    console.error('❌ GET USER BOOKINGS ERROR:', {
+      userId: req.userId,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
-  createBooking
+  createBooking,
+  getUserBookings
 };
