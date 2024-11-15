@@ -68,7 +68,12 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/business', businessRoutes);
 
-// Error handling
+// Add a health check route
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Manipedi API is running' });
+});
+
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
@@ -77,8 +82,26 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Port configuration - IMPORTANT FOR RENDER
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+
+// Start server and log the actual port
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/`);
   console.log('Allowed origins:', corsOptions.origin);
+});
+
+// Handle server errors
+server.on('error', (error) => {
+  console.error('Server error:', error);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });
