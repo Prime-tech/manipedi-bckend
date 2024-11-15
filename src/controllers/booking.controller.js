@@ -1,115 +1,141 @@
 const { PrismaClient } = require('@prisma/client');
 const { sendBookingRequestEmail } = require('../services/email.service');
-
 const prisma = new PrismaClient();
 
-exports.createBooking = async (req, res) => {
-  console.log('📍 CREATE BOOKING REQUEST:', {
+const createBooking = async (req, res) => {
+  const startTime = new Date();
+  console.log('📍 NEW BOOKING REQUEST STARTED:', {
     userId: req.userId,
     body: req.body,
-    timestamp: new Date().toISOString()
+    timestamp: startTime.toISOString()
   });
 
   try {
     const { serviceType, dateTime, zipCode } = req.body;
 
-    // Start a transaction
-    const result = await prisma.$transaction(async (prisma) => {
-      // 1. Create the booking
-      const booking = await prisma.booking.create({
-        data: {
-          userId: req.userId,
-          serviceType,
-          dateTime: new Date(dateTime),
-          zipCode,
-          status: 'PENDING'
-        },
-        include: {
-          user: true
-        }
-      });
-
-      // 2. Find nearby businesses (based on zipCode)
-      const businesses = await prisma.business.findMany({
-        where: {
-          zipCode: zipCode
-        }
-      });
-
-      // 3. Create booking requests for each business
-      const bookingRequests = await Promise.all(
-        businesses.map(async (business) => {
-          const request = await prisma.bookingRequest.create({
-            data: {
-              bookingId: booking.id,
-              businessId: business.id,
-              status: 'PENDING'
-            }
-          });
-
-          // 4. Send email to each business
-          try {
-            await sendBookingRequestEmail(business.email, {
-              bookingId: booking.id,
-              customerName: booking.user.fullName,
-              serviceType: booking.serviceType,
-              dateTime: booking.dateTime,
-              zipCode: booking.zipCode,
-              requestId: request.id // Add this for tracking
-            });
-          } catch (emailError) {
-            console.error('❌ Failed to send email to business:', {
-              businessId: business.id,
-              error: emailError.message
-            });
-            // Continue with other businesses even if email fails
-          }
-
-          return request;
-        })
-      );
-
-      return { booking, bookingRequests };
+    // 1. Create booking first
+    const booking = await prisma.booking.create({
+      data: {
+        userId: req.userId,
+        serviceType,
+        dateTime: new Date(dateTime),
+        zipCode,
+        status: 'PENDING'
+      },
+      include: {
+        user: true
+      }
     });
 
     console.log('✅ BOOKING CREATED:', {
-      bookingId: result.booking.id,
-      requestsSent: result.bookingRequests.length,
-      timestamp: new Date().toISOString()
+      bookingId: booking.id,
+      timestamp: new Date().toISOString(),
+      timeElapsed: `${new Date() - startTime}ms`
+    });
+
+    // 2. Find nearby businesses immediately
+    const businesses = await prisma.business.findMany({
+      where: {
+        zipCode: zipCode // For now using exact match, will implement radius later
+      }
+    });
+
+    console.log('📍 FOUND NEARBY BUSINESSES:', {
+      bookingId: booking.id,
+      businessCount: businesses.length,
+      zipCode,
+      timestamp: new Date().toISOString(),
+      timeElapsed: `${new Date() - startTime}ms`
+    });
+
+    // 3. Create booking requests and send emails concurrently
+    const emailPromises = [];
+    const requestPromises = businesses.map(async (business) => {
+      // Create booking request
+      const request = await prisma.bookingRequest.create({
+        data: {
+          bookingId: booking.id,
+          businessId: business.id,
+          status: 'PENDING'
+        }
+      });
+
+      console.log('✅ BOOKING REQUEST CREATED:', {
+        requestId: request.id,
+        businessId: business.id,
+        businessName: business.name,
+        timestamp: new Date().toISOString()
+      });
+
+      // Queue email sending
+      const emailPromise = sendBookingRequestEmail(business.email, {
+        bookingId: booking.id,
+        requestId: request.id,
+        customerName: booking.user.fullName,
+        serviceType: booking.serviceType,
+        dateTime: booking.dateTime,
+        zipCode: booking.zipCode
+      }).then(() => {
+        console.log('✅ NOTIFICATION EMAIL SENT:', {
+          requestId: request.id,
+          businessEmail: business.email,
+          businessName: business.name,
+          timestamp: new Date().toISOString(),
+          timeElapsed: `${new Date() - startTime}ms`
+        });
+      }).catch((error) => {
+        console.error('❌ EMAIL SENDING FAILED:', {
+          requestId: request.id,
+          businessEmail: business.email,
+          businessName: business.name,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      });
+
+      emailPromises.push(emailPromise);
+      return request;
+    });
+
+    // Wait for all booking requests to be created
+    const bookingRequests = await Promise.all(requestPromises);
+
+    // Wait for all emails to be sent (but don't block the response)
+    Promise.all(emailPromises).then(() => {
+      console.log('✅ ALL NOTIFICATIONS COMPLETED:', {
+        bookingId: booking.id,
+        totalBusinesses: businesses.length,
+        timestamp: new Date().toISOString(),
+        totalTimeElapsed: `${new Date() - startTime}ms`
+      });
+    });
+
+    // 4. Send immediate response to user
+    const endTime = new Date();
+    console.log('✅ BOOKING PROCESS COMPLETED:', {
+      bookingId: booking.id,
+      requestsSent: bookingRequests.length,
+      processingTime: `${endTime - startTime}ms`,
+      timestamp: endTime.toISOString()
     });
 
     res.status(201).json({
-      booking: result.booking,
-      message: `Booking created and sent to ${result.bookingRequests.length} businesses`
+      booking,
+      message: `Booking created and notifications sent to ${bookingRequests.length} businesses`,
+      requestsSent: bookingRequests.length
     });
 
   } catch (error) {
-    console.error('❌ CREATE BOOKING ERROR:', error);
+    console.error('❌ BOOKING CREATION ERROR:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      timeElapsed: `${new Date() - startTime}ms`
+    });
     res.status(500).json({ message: 'Internal server error' });
   }
 };
 
-exports.getUserBookings = async (req, res) => {
-  try {
-    const bookings = await prisma.booking.findMany({
-      where: {
-        userId: req.userId
-      },
-      include: {
-        requests: {
-          include: {
-            business: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    res.status(200).json({ bookings });
-  } catch (error) {
-    console.error('❌ GET USER BOOKINGS ERROR:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
+module.exports = {
+  createBooking
 };
