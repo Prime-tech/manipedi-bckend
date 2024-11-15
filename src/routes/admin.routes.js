@@ -19,4 +19,11 @@ router.get('/businesses/:id', adminController.getBusinessById);
 router.put('/businesses/:id', adminController.updateBusiness);
 router.delete('/businesses/:id', adminController.deleteBusiness);
 
+// User Management Routes
+router.get('/users', adminController.getAllUsers);
+router.get('/users/:userId', adminController.getUserById);
+router.get('/users/:userId/bookings', adminController.getUserBookingHistory);
+router.put('/users/:userId', adminController.updateUser);
+router.delete('/users/:userId', adminController.deleteUser);
+
 module.exports = router;

@@ -436,6 +436,225 @@ const deleteBusiness = async (req, res) => {
   }
 };
 
+// Get all users with pagination and search
+const getAllUsers = async (req, res) => {
+  console.log('📍 GET ALL USERS REQUEST:', {
+    query: req.query,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    const skip = (page - 1) * limit;
+
+    const where = search ? {
+      OR: [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search } }
+      ],
+      isAdmin: false // Exclude admin users from the list
+    } : { isAdmin: false };
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          verified: true,
+          createdAt: true,
+          _count: {
+            select: { bookings: true }
+          }
+        }
+      }),
+      prisma.user.count({ where })
+    ]);
+
+    console.log('✅ USERS RETRIEVED:', {
+      count: users.length,
+      total,
+      page,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({
+      users,
+      pagination: {
+        total,
+        pages: Math.ceil(total / limit),
+        currentPage: page,
+        perPage: limit
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ GET USERS ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get user by ID with basic info
+const getUserById = async (req, res) => {
+  console.log('📍 GET USER DETAILS REQUEST:', {
+    userId: req.params.userId,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.userId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        verified: true,
+        createdAt: true,
+        _count: {
+          select: { bookings: true }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log('✅ USER DETAILS RETRIEVED:', {
+      userId: user.id,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({ user });
+
+  } catch (error) {
+    console.error('❌ GET USER DETAILS ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get user's booking history
+const getUserBookingHistory = async (req, res) => {
+  console.log('📍 GET USER BOOKING HISTORY REQUEST:', {
+    userId: req.params.userId,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const bookings = await prisma.booking.findMany({
+      where: { userId: req.params.userId },
+      include: {
+        requests: {
+          include: {
+            business: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { dateTime: 'desc' }
+    });
+
+    console.log('✅ USER BOOKING HISTORY RETRIEVED:', {
+      userId: req.params.userId,
+      bookingsCount: bookings.length,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({ bookings });
+
+  } catch (error) {
+    console.error('❌ GET USER BOOKING HISTORY ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Update user
+const updateUser = async (req, res) => {
+  console.log('📍 UPDATE USER REQUEST:', {
+    userId: req.params.userId,
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const { fullName, email, phone } = req.body;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.params.userId },
+      data: {
+        fullName,
+        email,
+        phone
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        verified: true,
+        createdAt: true
+      }
+    });
+
+    console.log('✅ USER UPDATED:', {
+      userId: updatedUser.id,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({ user: updatedUser });
+
+  } catch (error) {
+    console.error('❌ UPDATE USER ERROR:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Delete user
+const deleteUser = async (req, res) => {
+  console.log('📍 DELETE USER REQUEST:', {
+    userId: req.params.userId,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    await prisma.user.delete({
+      where: { id: req.params.userId }
+    });
+
+    console.log('✅ USER DELETED:', {
+      userId: req.params.userId,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({ message: 'User deleted successfully' });
+
+  } catch (error) {
+    console.error('❌ DELETE USER ERROR:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // Export the controller
 module.exports = {
   ...adminController,
@@ -444,5 +663,10 @@ module.exports = {
   createBusiness,
   getBusinessById,
   updateBusiness,
-  deleteBusiness
+  deleteBusiness,
+  getAllUsers,
+  getUserById,
+  getUserBookingHistory,
+  updateUser,
+  deleteUser
 }; 
