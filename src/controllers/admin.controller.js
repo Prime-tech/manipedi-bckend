@@ -224,8 +224,225 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+// Get all businesses with pagination and search
+const getAllBusinesses = async (req, res) => {
+  console.log('📍 GET ALL BUSINESSES REQUEST:', {
+    query: req.query,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    const skip = (page - 1) * limit;
+
+    const where = search ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { zipCode: { contains: search } }
+      ]
+    } : {};
+
+    const [businesses, total] = await Promise.all([
+      prisma.business.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          bookingRequests: {
+            select: {
+              id: true,
+              status: true,
+              createdAt: true
+            }
+          }
+        }
+      }),
+      prisma.business.count({ where })
+    ]);
+
+    console.log('✅ GET BUSINESSES SUCCESS:', {
+      count: businesses.length,
+      total,
+      page,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({
+      businesses,
+      pagination: {
+        total,
+        pages: Math.ceil(total / limit),
+        currentPage: page,
+        perPage: limit
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ GET BUSINESSES ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Create new business
+const createBusiness = async (req, res) => {
+  console.log('📍 CREATE BUSINESS REQUEST:', {
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const { name, email, contactPerson, phone, zipCode } = req.body;
+
+    // Check if business with email already exists
+    const existingBusiness = await prisma.business.findUnique({
+      where: { email }
+    });
+
+    if (existingBusiness) {
+      return res.status(400).json({ message: 'Business with this email already exists' });
+    }
+
+    const business = await prisma.business.create({
+      data: {
+        name,
+        email,
+        contactPerson,
+        phone,
+        zipCode
+      }
+    });
+
+    console.log('✅ BUSINESS CREATED:', {
+      businessId: business.id,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(201).json({ business });
+
+  } catch (error) {
+    console.error('❌ CREATE BUSINESS ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get business by ID
+const getBusinessById = async (req, res) => {
+  console.log('📍 GET BUSINESS REQUEST:', {
+    businessId: req.params.id,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const business = await prisma.business.findUnique({
+      where: { id: req.params.id },
+      include: {
+        bookingRequests: {
+          include: {
+            booking: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    email: true,
+                    phone: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!business) {
+      return res.status(404).json({ message: 'Business not found' });
+    }
+
+    res.status(200).json({ business });
+
+  } catch (error) {
+    console.error('❌ GET BUSINESS ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Update business
+const updateBusiness = async (req, res) => {
+  console.log('📍 UPDATE BUSINESS REQUEST:', {
+    businessId: req.params.id,
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const { name, contactPerson, phone, zipCode } = req.body;
+
+    const business = await prisma.business.update({
+      where: { id: req.params.id },
+      data: {
+        name,
+        contactPerson,
+        phone,
+        zipCode
+      }
+    });
+
+    console.log('✅ BUSINESS UPDATED:', {
+      businessId: business.id,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({ business });
+
+  } catch (error) {
+    console.error('❌ UPDATE BUSINESS ERROR:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Business not found' });
+    }
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Delete business
+const deleteBusiness = async (req, res) => {
+  console.log('📍 DELETE BUSINESS REQUEST:', {
+    businessId: req.params.id,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    await prisma.business.delete({
+      where: { id: req.params.id }
+    });
+
+    console.log('✅ BUSINESS DELETED:', {
+      businessId: req.params.id,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({ message: 'Business deleted successfully' });
+
+  } catch (error) {
+    console.error('❌ DELETE BUSINESS ERROR:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Business not found' });
+    }
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // Export the controller
 module.exports = {
   ...adminController,
-  getDashboardStats
+  getDashboardStats,
+  getAllBusinesses,
+  createBusiness,
+  getBusinessById,
+  updateBusiness,
+  deleteBusiness
 }; 
