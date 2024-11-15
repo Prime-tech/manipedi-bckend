@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const { OAuth2Client } = require('google-auth-library');
+const { google } = require('google-auth-library');
 
 const sendOTP = async (email, otp) => {
   console.log('📧 STARTING EMAIL SEND:', {
@@ -70,8 +71,55 @@ const sendOTP = async (email, otp) => {
   }
 };
 
+// Add detailed logging for transporter creation
+const createTransporter = async () => {
+  try {
+    console.log('📧 CREATING EMAIL TRANSPORTER');
+    
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GMAIL_CLIENT_ID,
+      process.env.GMAIL_CLIENT_SECRET
+    );
+
+    oauth2Client.setCredentials({
+      refresh_token: process.env.GMAIL_REFRESH_TOKEN
+    });
+
+    const accessToken = await oauth2Client.getAccessToken();
+    console.log('✅ OAUTH2 ACCESS TOKEN OBTAINED');
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: process.env.GMAIL_USER,
+        clientId: process.env.GMAIL_CLIENT_ID,
+        clientSecret: process.env.GMAIL_CLIENT_SECRET,
+        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+        accessToken: accessToken.token
+      }
+    });
+
+    console.log('✅ EMAIL TRANSPORTER CREATED');
+    return transporter;
+  } catch (error) {
+    console.error('❌ FAILED TO CREATE EMAIL TRANSPORTER:', {
+      error: error.message,
+      stack: error.stack
+    });
+    throw error;
+  }
+};
+
 const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
   try {
+    console.log('📧 PREPARING TO SEND EMAIL:', {
+      to: businessEmail,
+      bookingId: bookingDetails.bookingId
+    });
+
+    const transporter = await createTransporter();
+    
     // Create secure action URLs
     const acceptUrl = `${process.env.FRONTEND_URL}/business/bookings/${bookingDetails.requestId}/accept`;
     const declineUrl = `${process.env.FRONTEND_URL}/business/bookings/${bookingDetails.requestId}/decline`;
@@ -106,14 +154,21 @@ const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
       `
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log('✅ Booking Request Email Sent:', { 
-      businessEmail,
-      bookingId: bookingDetails.bookingId,
-      timestamp: new Date().toISOString()
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ EMAIL SENT:', {
+      messageId: info.messageId,
+      to: businessEmail,
+      bookingId: bookingDetails.bookingId
     });
+
+    return info;
   } catch (error) {
-    console.error('❌ Booking Request Email Error:', error);
+    console.error('❌ EMAIL SENDING ERROR:', {
+      to: businessEmail,
+      bookingId: bookingDetails.bookingId,
+      error: error.message,
+      stack: error.stack
+    });
     throw error;
   }
 };

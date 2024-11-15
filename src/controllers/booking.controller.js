@@ -27,28 +27,28 @@ const createBooking = async (req, res) => {
       }
     });
 
-    console.log('✅ BOOKING CREATED:', {
-      bookingId: booking.id,
-      timestamp: new Date().toISOString(),
-      timeElapsed: `${new Date() - startTime}ms`
-    });
+    // 2. Find ALL businesses first (remove zipCode filter temporarily)
+    const businesses = await prisma.business.findMany();
 
-    // 2. Find nearby businesses immediately
-    const businesses = await prisma.business.findMany({
-      where: {
-        zipCode: zipCode // For now using exact match, will implement radius later
-      }
-    });
-
-    console.log('📍 FOUND NEARBY BUSINESSES:', {
+    console.log('📍 FOUND BUSINESSES IN DB:', {
       bookingId: booking.id,
       businessCount: businesses.length,
-      zipCode,
+      businesses: businesses.map(b => ({
+        id: b.id,
+        name: b.name,
+        email: b.email,
+        zipCode: b.zipCode
+      })),
       timestamp: new Date().toISOString(),
       timeElapsed: `${new Date() - startTime}ms`
     });
 
-    // 3. Create booking requests and send emails concurrently
+    if (businesses.length === 0) {
+      console.warn('⚠️ NO BUSINESSES FOUND IN DATABASE');
+      // Consider sending an admin notification here
+    }
+
+    // 3. Create booking requests and send emails
     const emailPromises = [];
     const requestPromises = businesses.map(async (business) => {
       // Create booking request
@@ -60,14 +60,15 @@ const createBooking = async (req, res) => {
         }
       });
 
-      console.log('✅ BOOKING REQUEST CREATED:', {
+      console.log('📧 ATTEMPTING TO SEND EMAIL:', {
         requestId: request.id,
         businessId: business.id,
+        businessEmail: business.email,
         businessName: business.name,
         timestamp: new Date().toISOString()
       });
 
-      // Queue email sending
+      // Queue email sending with detailed logging
       const emailPromise = sendBookingRequestEmail(business.email, {
         bookingId: booking.id,
         requestId: request.id,
@@ -76,12 +77,11 @@ const createBooking = async (req, res) => {
         dateTime: booking.dateTime,
         zipCode: booking.zipCode
       }).then(() => {
-        console.log('✅ NOTIFICATION EMAIL SENT:', {
+        console.log('✅ EMAIL SENT SUCCESSFULLY:', {
           requestId: request.id,
           businessEmail: business.email,
           businessName: business.name,
-          timestamp: new Date().toISOString(),
-          timeElapsed: `${new Date() - startTime}ms`
+          timestamp: new Date().toISOString()
         });
       }).catch((error) => {
         console.error('❌ EMAIL SENDING FAILED:', {
@@ -89,8 +89,10 @@ const createBooking = async (req, res) => {
           businessEmail: business.email,
           businessName: business.name,
           error: error.message,
+          errorStack: error.stack,
           timestamp: new Date().toISOString()
         });
+        throw error; // Re-throw to be caught by Promise.all
       });
 
       emailPromises.push(emailPromise);
@@ -101,23 +103,22 @@ const createBooking = async (req, res) => {
     const bookingRequests = await Promise.all(requestPromises);
 
     // Wait for all emails to be sent (but don't block the response)
-    Promise.all(emailPromises).then(() => {
-      console.log('✅ ALL NOTIFICATIONS COMPLETED:', {
-        bookingId: booking.id,
-        totalBusinesses: businesses.length,
-        timestamp: new Date().toISOString(),
-        totalTimeElapsed: `${new Date() - startTime}ms`
+    Promise.all(emailPromises)
+      .then(() => {
+        console.log('✅ ALL EMAILS SENT SUCCESSFULLY:', {
+          bookingId: booking.id,
+          totalBusinesses: businesses.length,
+          timestamp: new Date().toISOString(),
+          totalTimeElapsed: `${new Date() - startTime}ms`
+        });
+      })
+      .catch((error) => {
+        console.error('❌ SOME EMAILS FAILED TO SEND:', {
+          bookingId: booking.id,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
       });
-    });
-
-    // 4. Send immediate response to user
-    const endTime = new Date();
-    console.log('✅ BOOKING PROCESS COMPLETED:', {
-      bookingId: booking.id,
-      requestsSent: bookingRequests.length,
-      processingTime: `${endTime - startTime}ms`,
-      timestamp: endTime.toISOString()
-    });
 
     res.status(201).json({
       booking,
