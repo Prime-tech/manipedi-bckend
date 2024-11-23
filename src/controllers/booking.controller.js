@@ -1,6 +1,29 @@
 const { PrismaClient } = require('@prisma/client');
-const { sendBookingRequestEmail } = require('../services/email.service');
+const { sendBookingRequestEmail, sendBookingConfirmationEmail, sendBusinessConfirmationEmail } = require('../services/email.service');
 const prisma = new PrismaClient();
+
+const calculateBookingDateTime = (timePreference) => {
+  const now = new Date();
+  
+  switch (timePreference) {
+    case 'asap':
+      // Add 1 hour to current time for ASAP bookings
+      return new Date(now.getTime() + 60 * 60 * 1000);
+      
+    case 'between':
+      // Set time to 9 AM if current time is before 9 AM, otherwise use current time
+      const nineAM = new Date(now).setHours(9, 0, 0, 0);
+      return new Date(Math.max(now, nineAM));
+      
+    case 'after':
+      // Set time to 12 PM if current time is before noon, otherwise use current time
+      const noon = new Date(now).setHours(12, 0, 0, 0);
+      return new Date(Math.max(now, noon));
+      
+    default:
+      throw new Error('Invalid time preference');
+  }
+};
 
 const createBooking = async (req, res) => {
   const startTime = new Date();
@@ -11,14 +34,17 @@ const createBooking = async (req, res) => {
   });
 
   try {
-    const { serviceType, dateTime, zipCode } = req.body;
+    const { serviceType, zipCode, timePreference } = req.body;
 
-    // 1. Create booking first
+    // Calculate booking datetime based on timePreference
+    const dateTime = calculateBookingDateTime(timePreference);
+
+    // Create booking with calculated datetime
     const booking = await prisma.booking.create({
       data: {
         userId: req.userId,
         serviceType,
-        dateTime: new Date(dateTime),
+        dateTime,
         zipCode,
         status: 'PENDING'
       },
@@ -184,7 +210,89 @@ const getUserBookings = async (req, res) => {
   }
 };
 
+// Get all responses for a booking
+const getBookingResponses = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const responses = await prisma.bookingRequest.findMany({
+      where: {
+        bookingId,
+        status: 'ACCEPTED'
+      },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            zipCode: true
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ responses });
+  } catch (error) {
+    console.error('❌ GET BOOKING RESPONSES ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Select a salon for booking
+const selectSalon = async (req, res) => {
+  try {
+    const { bookingId, requestId } = req.params;
+
+    const booking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: 'CONFIRMED',
+        selectedRequestId: requestId
+      },
+      include: {
+        selectedRequest: {
+          include: {
+            business: true
+          }
+        },
+        user: true
+      }
+    });
+
+    // Send confirmation emails
+    await Promise.all([
+      sendBookingConfirmationEmail(booking.user.email, {
+        bookingId: booking.id,
+        businessName: booking.selectedRequest.business.name,
+        serviceType: booking.serviceType,
+        dateTime: booking.dateTime,
+        price: booking.selectedRequest.price
+      }),
+      sendBusinessConfirmationEmail(booking.selectedRequest.business.email, {
+        bookingId: booking.id,
+        customerName: booking.user.fullName,
+        customerPhone: booking.user.phone,
+        serviceType: booking.serviceType,
+        dateTime: booking.dateTime,
+        price: booking.selectedRequest.price
+      })
+    ]);
+
+    res.status(200).json({
+      message: 'Salon selected successfully',
+      booking
+    });
+  } catch (error) {
+    console.error('❌ SELECT SALON ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createBooking,
-  getUserBookings
+  getUserBookings,
+  getBookingResponses,
+  selectSalon
 };
