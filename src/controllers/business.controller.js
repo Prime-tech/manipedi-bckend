@@ -2,109 +2,46 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 exports.acceptBookingRequest = async (req, res) => {
-  console.log('📍 ACCEPT BOOKING REQUEST:', {
-    requestId: req.params.requestId,
-    timestamp: new Date().toISOString()
-  });
-
   try {
     const { requestId } = req.params;
+    const { price, notes } = req.body;
 
-    // Start a transaction
-    const result = await prisma.$transaction(async (prisma) => {
-      // Get the booking request
-      const bookingRequest = await prisma.bookingRequest.findUnique({
-        where: { id: requestId },
-        include: {
-          booking: true,
-          business: true
-        }
-      });
-
-      if (!bookingRequest) {
-        throw new Error('Booking request not found');
-      }
-
-      if (bookingRequest.status !== 'PENDING') {
-        throw new Error('Booking request is no longer pending');
-      }
-
-      // Update the current booking request to ACCEPTED
-      const updatedRequest = await prisma.bookingRequest.update({
-        where: { id: requestId },
-        data: { status: 'ACCEPTED' },
-        include: {
-          booking: {
-            include: {
-              user: true
-            }
-          },
-          business: true
-        }
-      });
-
-      // Update the booking status to ACCEPTED
-      await prisma.booking.update({
-        where: { id: bookingRequest.bookingId },
-        data: { status: 'ACCEPTED' }
-      });
-
-      // Update all other pending requests for this booking to DECLINED
-      await prisma.bookingRequest.updateMany({
-        where: {
-          bookingId: bookingRequest.bookingId,
-          id: { not: requestId },
-          status: 'PENDING'
+    const result = await prisma.bookingRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'ACCEPTED',
+        price,
+        notes
+      },
+      include: {
+        booking: {
+          include: {
+            user: true
+          }
         },
-        data: { status: 'DECLINED' }
-      });
-
-      return updatedRequest;
+        business: true
+      }
     });
 
-    // Send confirmation emails
-    await Promise.all([
-      // Email to customer
-      sendBookingConfirmationEmail(
-        result.booking.user.email,
-        {
-          bookingId: result.booking.id,
-          businessName: result.business.name,
-          serviceType: result.booking.serviceType,
-          dateTime: result.booking.dateTime,
-          businessPhone: result.business.phone
-        }
-      ),
-      // Email to business
-      sendBusinessConfirmationEmail(
-        result.business.email,
-        {
-          bookingId: result.booking.id,
-          customerName: result.booking.user.fullName,
-          customerPhone: result.booking.user.phone,
-          serviceType: result.booking.serviceType,
-          dateTime: result.booking.dateTime
-        }
-      )
-    ]);
-
-    console.log('✅ BOOKING REQUEST ACCEPTED:', {
-      requestId,
-      bookingId: result.bookingId,
-      timestamp: new Date().toISOString()
-    });
+    // Send notification to customer about new response
+    await sendSalonResponseEmail(
+      result.booking.user.email,
+      {
+        bookingId: result.booking.id,
+        businessName: result.business.name,
+        price,
+        notes
+      }
+    );
 
     res.status(200).json({
-      message: 'Booking request accepted successfully',
+      message: 'Response sent successfully',
       bookingRequest: result
     });
 
   } catch (error) {
-    console.error('❌ ACCEPT BOOKING REQUEST ERROR:', {
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-    res.status(500).json({ message: error.message || 'Internal server error' });
+    console.error('❌ ACCEPT BOOKING REQUEST ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
