@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const { sendBookingRequestEmail, sendBookingConfirmationEmail, sendBusinessConfirmationEmail } = require('../services/email.service');
+const { sendBookingRequestEmail, sendBookingConfirmationEmail, sendBusinessConfirmationEmail, sendQuoteRejectionEmail } = require('../services/email.service');
 const prisma = new PrismaClient();
 
 const calculateBookingDateTime = (timePreference) => {
@@ -290,9 +290,135 @@ const selectSalon = async (req, res) => {
   }
 };
 
+// Get all quotes for a booking
+const getQuotes = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const quotes = await prisma.bookingRequest.findMany({
+      where: {
+        bookingId,
+        status: 'ACCEPTED'
+      },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ quotes });
+  } catch (error) {
+    console.error('❌ GET QUOTES ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Confirm a quote
+const confirmQuote = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { message } = req.body;
+
+    // Update the booking request
+    const result = await prisma.bookingRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'CONFIRMED',
+        userResponse: message,
+        confirmedAt: new Date()
+      },
+      include: {
+        booking: {
+          include: {
+            user: true
+          }
+        },
+        business: true
+      }
+    });
+
+    // Update the main booking status
+    await prisma.booking.update({
+      where: { id: result.bookingId },
+      data: {
+        status: 'CONFIRMED',
+        selectedRequestId: requestId
+      }
+    });
+
+    // Send confirmation emails
+    await Promise.all([
+      sendBookingConfirmationEmail(result.booking.user.email, {
+        bookingId: result.booking.id,
+        businessName: result.business.name,
+        price: result.price,
+        dateTime: result.booking.dateTime,
+        message: message || ''
+      }),
+      sendBusinessConfirmationEmail(result.business.email, {
+        bookingId: result.booking.id,
+        customerName: result.booking.user.fullName,
+        customerPhone: result.booking.user.phone,
+        price: result.price,
+        dateTime: result.booking.dateTime,
+        message: message || ''
+      })
+    ]);
+
+    res.status(200).json({
+      message: 'Quote confirmed successfully',
+      booking: result
+    });
+  } catch (error) {
+    console.error('❌ CONFIRM QUOTE ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Reject a quote
+const rejectQuote = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { reason } = req.body;
+
+    const result = await prisma.bookingRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'REJECTED',
+        userResponse: reason
+      },
+      include: {
+        business: true
+      }
+    });
+
+    // Notify business of rejection
+    await sendQuoteRejectionEmail(result.business.email, {
+      businessName: result.business.name,
+      reason: reason || 'No reason provided'
+    });
+
+    res.status(200).json({
+      message: 'Quote rejected successfully'
+    });
+  } catch (error) {
+    console.error('❌ REJECT QUOTE ERROR:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createBooking,
   getUserBookings,
   getBookingResponses,
-  selectSalon
+  selectSalon,
+  getQuotes,
+  confirmQuote,
+  rejectQuote
 };

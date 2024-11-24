@@ -66,9 +66,11 @@ model BookingRequest {
   id          String    @id @default(uuid())
   bookingId   String
   businessId  String
-  status      String    // "PENDING", "ACCEPTED", "DECLINED"
-  price       Decimal?  // Made optional since it's set later
-  notes       String?   // Optional field
+  status      String    // "PENDING", "ACCEPTED", "DECLINED", "CONFIRMED", "REJECTED"
+  price       Decimal?
+  notes       String?
+  userResponse String?  // User's response message (optional)
+  confirmedAt DateTime? // When the user confirmed
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

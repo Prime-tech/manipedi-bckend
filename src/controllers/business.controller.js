@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { sendSalonResponseEmail } = require('../services/email.service');
 
 exports.acceptBookingRequest = async (req, res) => {
   try {
@@ -23,7 +24,7 @@ exports.acceptBookingRequest = async (req, res) => {
       }
     });
 
-    // Send notification to customer about new response
+    // Send notification to customer about new quote
     await sendSalonResponseEmail(
       result.booking.user.email,
       {
@@ -33,6 +34,13 @@ exports.acceptBookingRequest = async (req, res) => {
         notes
       }
     );
+
+    console.log('✅ BOOKING REQUEST ACCEPTED:', {
+      requestId,
+      businessId: result.business.id,
+      price,
+      timestamp: new Date().toISOString()
+    });
 
     res.status(200).json({
       message: 'Response sent successfully',
@@ -110,5 +118,37 @@ exports.declineBookingRequest = async (req, res) => {
       timestamp: new Date().toISOString()
     });
     res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.handleEmailAccept = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Redirect to the frontend with the requestId
+    res.redirect(`${process.env.FRONTEND_URL}/business/quote/${requestId}`);
+
+  } catch (error) {
+    console.error('❌ EMAIL ACCEPT ERROR:', error);
+    res.redirect(`${process.env.FRONTEND_URL}/error`);
+  }
+};
+
+exports.handleEmailDecline = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Update the booking request status
+    await prisma.bookingRequest.update({
+      where: { id: requestId },
+      data: { status: 'DECLINED' }
+    });
+
+    // Redirect to confirmation page
+    res.redirect(`${process.env.FRONTEND_URL}/business/declined`);
+
+  } catch (error) {
+    console.error('❌ EMAIL DECLINE ERROR:', error);
+    res.redirect(`${process.env.FRONTEND_URL}/error`);
   }
 };

@@ -123,118 +123,112 @@ const createTransporter = async () => {
 
 const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
   try {
-    console.log('📧 PREPARING TO SEND EMAIL:', {
-      to: businessEmail,
-      bookingId: bookingDetails.bookingId
-    });
-
-    const transporter = await createTransporter();
-    
-    const acceptUrl = `${process.env.FRONTEND_URL}/business/bookings/${bookingDetails.requestId}/accept`;
-    const declineUrl = `${process.env.FRONTEND_URL}/business/bookings/${bookingDetails.requestId}/decline`;
+    // Create unique URLs for accept/decline actions
+    const acceptUrl = `${process.env.FRONTEND_URL}/business/quote/${bookingDetails.requestId}`;
+    const declineUrl = `${process.env.FRONTEND_URL}/business/decline/${bookingDetails.requestId}`;
 
     const mailOptions = {
-      from: `"Manipedi Booking" <${process.env.GMAIL_USER}>`,
+      from: process.env.GMAIL_USER,
       to: businessEmail,
       subject: 'New Booking Request - Manipedi',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #333;">New Booking Request</h2>
-          <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
-            <p><strong>Service:</strong> ${bookingDetails.serviceType}</p>
+          <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+            <p><strong>Service Type:</strong> ${bookingDetails.serviceType}</p>
             <p><strong>Date/Time:</strong> ${new Date(bookingDetails.dateTime).toLocaleString()}</p>
             <p><strong>Location:</strong> ${bookingDetails.zipCode}</p>
-            <p><strong>Customer:</strong> ${bookingDetails.customerName}</p>
+            <p><strong>Request ID:</strong> ${bookingDetails.requestId}</p>
           </div>
-          <div style="text-align: center; margin-top: 20px;">
+          
+          <div style="text-align: center; margin: 30px 0;">
             <a href="${acceptUrl}" 
-               style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; margin-right: 10px; border-radius: 5px;">
-              Accept Booking
+               style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; margin-right: 15px; font-weight: bold;">
+              Accept & Enter Quote
             </a>
             <a href="${declineUrl}" 
-               style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-              Decline Booking
+               style="display: inline-block; background-color: #f44336; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+              Decline Request
             </a>
           </div>
-          <p style="color: #666; margin-top: 20px; font-size: 14px; text-align: center;">
-            Please respond to this request as soon as possible.
-          </p>
+          
+          <div style="margin-top: 20px; padding: 15px; border-top: 1px solid #eee;">
+            <p style="color: #666; font-size: 14px;">
+              • Clicking "Accept & Enter Quote" will take you to a form to provide your price quote<br>
+              • Clicking "Decline Request" will immediately decline this booking request<br>
+              • Please respond within 2 hours to ensure the best chance of securing the booking
+            </p>
+          </div>
         </div>
       `
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ EMAIL SENT:', {
-      messageId: info.messageId,
-      to: businessEmail,
-      bookingId: bookingDetails.bookingId
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Booking Request Email Sent:', {
+      businessEmail,
+      requestId: bookingDetails.requestId,
+      timestamp: new Date().toISOString()
     });
-
-    return info;
   } catch (error) {
-    console.error('❌ EMAIL SENDING ERROR:', {
-      to: businessEmail,
-      bookingId: bookingDetails.bookingId,
-      error: error.message,
-      stack: error.stack
-    });
+    console.error('❌ Booking Request Email Error:', error);
     throw error;
   }
 };
 
-const sendBookingConfirmationEmail = async (customerEmail, bookingDetails) => {
+const sendBookingConfirmationEmail = async (userEmail, details) => {
   try {
     const mailOptions = {
       from: process.env.GMAIL_USER,
-      to: customerEmail,
-      subject: 'Your Manipedi Booking is Confirmed!',
+      to: userEmail,
+      subject: 'Booking Confirmed! - Manipedi',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #333;">Booking Confirmed!</h2>
+          <h2 style="color: #333;">Your Booking is Confirmed!</h2>
           <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
-            <p><strong>Booking ID:</strong> ${bookingDetails.bookingId}</p>
-            <p><strong>Service:</strong> ${bookingDetails.serviceType}</p>
-            <p><strong>Date/Time:</strong> ${new Date(bookingDetails.dateTime).toLocaleString()}</p>
-            <p><strong>Business:</strong> ${bookingDetails.businessName}</p>
-            <p><strong>Business Phone:</strong> ${bookingDetails.businessPhone}</p>
+            <p><strong>Salon:</strong> ${details.businessName}</p>
+            <p><strong>Date/Time:</strong> ${new Date(details.dateTime).toLocaleString()}</p>
+            <p><strong>Price:</strong> $${details.price}</p>
+            <p><strong>Booking ID:</strong> ${details.bookingId}</p>
           </div>
           <p style="margin-top: 20px; color: #666;">
-            If you need to make any changes to your booking, please contact the business directly.
+            The salon has been notified and is expecting you. Enjoy your service!
           </p>
         </div>
       `
     };
 
     await transporter.sendMail(mailOptions);
-    console.log('✅ Booking Confirmation Email Sent:', { customerEmail });
   } catch (error) {
     console.error('❌ Booking Confirmation Email Error:', error);
     throw error;
   }
 };
 
-const sendBusinessConfirmationEmail = async (businessEmail, bookingDetails) => {
+const sendBusinessConfirmationEmail = async (businessEmail, details) => {
   try {
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: businessEmail,
-      subject: 'Booking Confirmation - Manipedi',
+      subject: 'Booking Confirmed! - Manipedi',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #333;">Booking Confirmed</h2>
+          <h2 style="color: #333;">New Booking Confirmed!</h2>
           <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
-            <p><strong>Booking ID:</strong> ${bookingDetails.bookingId}</p>
-            <p><strong>Customer:</strong> ${bookingDetails.customerName}</p>
-            <p><strong>Customer Phone:</strong> ${bookingDetails.customerPhone}</p>
-            <p><strong>Service:</strong> ${bookingDetails.serviceType}</p>
-            <p><strong>Date/Time:</strong> ${new Date(bookingDetails.dateTime).toLocaleString()}</p>
+            <p><strong>Customer:</strong> ${details.customerName}</p>
+            <p><strong>Phone:</strong> ${details.customerPhone}</p>
+            <p><strong>Date/Time:</strong> ${new Date(details.dateTime).toLocaleString()}</p>
+            <p><strong>Price:</strong> $${details.price}</p>
+            <p><strong>Booking ID:</strong> ${details.bookingId}</p>
+            ${details.message ? `<p><strong>Message:</strong> ${details.message}</p>` : ''}
           </div>
+          <p style="margin-top: 20px; color: #666;">
+            Please prepare for the customer's arrival at the scheduled time.
+          </p>
         </div>
       `
     };
 
     await transporter.sendMail(mailOptions);
-    console.log('✅ Business Confirmation Email Sent:', { businessEmail });
   } catch (error) {
     console.error('❌ Business Confirmation Email Error:', error);
     throw error;
@@ -271,10 +265,50 @@ const sendBookingCancellationEmail = async (customerEmail, bookingDetails) => {
   }
 };
 
+// Add new email function for salon responses
+const sendSalonResponseEmail = async (userEmail, responseDetails) => {
+  try {
+    const viewQuoteUrl = `${process.env.FRONTEND_URL}/bookings/${responseDetails.bookingId}/quotes`;
+    
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to: userEmail,
+      subject: 'New Quote for Your Booking - Manipedi',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333;">New Quote Received!</h2>
+          <div style="background-color: #f8f8f8; padding: 20px; border-radius: 5px;">
+            <p><strong>Salon:</strong> ${responseDetails.businessName}</p>
+            <p><strong>Price:</strong> $${responseDetails.price}</p>
+            ${responseDetails.notes ? `<p><strong>Notes:</strong> ${responseDetails.notes}</p>` : ''}
+            <p><strong>Booking ID:</strong> ${responseDetails.bookingId}</p>
+          </div>
+          <div style="margin-top: 20px; text-align: center;">
+            <a href="${viewQuoteUrl}" 
+               style="display: inline-block; background-color: #ff69b4; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+              View All Quotes
+            </a>
+          </div>
+          <p style="margin-top: 20px; color: #666; font-size: 14px;">
+            You can compare all quotes and select your preferred salon by clicking the button above.
+          </p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Salon Response Email Sent:', { userEmail });
+  } catch (error) {
+    console.error('❌ Salon Response Email Error:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendOTP,
   sendBookingRequestEmail,
   sendBookingConfirmationEmail,
   sendBusinessConfirmationEmail,
-  sendBookingCancellationEmail
+  sendBookingCancellationEmail,
+  sendSalonResponseEmail
 };

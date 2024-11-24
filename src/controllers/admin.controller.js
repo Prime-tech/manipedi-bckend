@@ -416,12 +416,20 @@ const deleteBusiness = async (req, res) => {
   });
 
   try {
+    const { id } = req.params;
+
+    // First, delete all related booking requests
+    await prisma.bookingRequest.deleteMany({
+      where: { businessId: id }
+    });
+
+    // Then delete the business
     await prisma.business.delete({
-      where: { id: req.params.id }
+      where: { id }
     });
 
     console.log('✅ BUSINESS DELETED:', {
-      businessId: req.params.id,
+      businessId: id,
       timestamp: new Date().toISOString()
     });
 
