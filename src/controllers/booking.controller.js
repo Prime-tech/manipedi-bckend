@@ -96,9 +96,7 @@ const createBooking = async (req, res) => {
 
       // Queue email sending with detailed logging
       const emailPromise = sendBookingRequestEmail(business.email, {
-        bookingId: booking.id,
         requestId: request.id,
-        customerName: booking.user.fullName,
         serviceType: booking.serviceType,
         dateTime: booking.dateTime,
         zipCode: booking.zipCode

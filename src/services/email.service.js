@@ -123,9 +123,20 @@ const createTransporter = async () => {
 
 const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
   try {
+    // Ensure we're using the correct frontend URL
+    const FRONTEND_URL = 'https://www.manipeditime.com';
+    
     // Create unique URLs for accept/decline actions
-    const acceptUrl = `${process.env.FRONTEND_URL}/business/quote/${bookingDetails.requestId}`;
-    const declineUrl = `${process.env.FRONTEND_URL}/business/decline/${bookingDetails.requestId}`;
+    const acceptUrl = `${FRONTEND_URL}/business/accept/${bookingDetails.requestId}`;
+    const declineUrl = `${FRONTEND_URL}/business/decline/${bookingDetails.requestId}`;
+
+    console.log('📧 SENDING BUSINESS EMAIL:', {
+      to: businessEmail,
+      requestId: bookingDetails.requestId,
+      acceptUrl,
+      declineUrl,
+      timestamp: new Date().toISOString()
+    });
 
     const mailOptions = {
       from: process.env.GMAIL_USER,
