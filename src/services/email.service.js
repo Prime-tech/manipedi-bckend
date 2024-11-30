@@ -123,19 +123,23 @@ const createTransporter = async () => {
 
 const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
   try {
-    // Ensure FRONTEND_URL is properly set and doesn't end with a slash
-    const FRONTEND_URL = process.env.FRONTEND_URL.replace(/\/$/, '');
+    // Check if FRONTEND_URL exists and provide a default if not
+    const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.manipeditime.com').replace(/\/$/, '');
     
+    console.log('📧 SENDING BUSINESS EMAIL:', {
+      to: businessEmail,
+      requestId: bookingDetails.requestId,
+      frontendUrl: FRONTEND_URL, // Add this for debugging
+      timestamp: new Date().toISOString()
+    });
+
     // Create unique URLs for accept/decline actions
     const acceptUrl = `${FRONTEND_URL}/business/quote/${bookingDetails.requestId}`;
     const declineUrl = `${FRONTEND_URL}/business/decline/${bookingDetails.requestId}`;
 
-    console.log('📧 SENDING BUSINESS EMAIL:', {
-      to: businessEmail,
-      requestId: bookingDetails.requestId,
+    console.log('🔗 Generated URLs:', {
       acceptUrl,
-      declineUrl,
-      timestamp: new Date().toISOString()
+      declineUrl
     });
 
     const mailOptions = {
@@ -180,7 +184,14 @@ const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
       requestId: bookingDetails.requestId
     });
   } catch (error) {
-    console.error('❌ Booking Request Email Error:', error);
+    console.error('❌ Booking Request Email Error:', {
+      error: error.message,
+      stack: error.stack,
+      env: {
+        frontendUrl: process.env.FRONTEND_URL || 'not set',
+        gmailUser: process.env.GMAIL_USER ? 'set' : 'not set'
+      }
+    });
     throw error;
   }
 };
