@@ -123,11 +123,11 @@ const createTransporter = async () => {
 
 const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
   try {
-    // Ensure we're using the correct frontend URL
-    const FRONTEND_URL = 'https://www.manipeditime.com';
+    // Ensure FRONTEND_URL is properly set and doesn't end with a slash
+    const FRONTEND_URL = process.env.FRONTEND_URL.replace(/\/$/, '');
     
     // Create unique URLs for accept/decline actions
-    const acceptUrl = `${FRONTEND_URL}/business/accept/${bookingDetails.requestId}`;
+    const acceptUrl = `${FRONTEND_URL}/business/quote/${bookingDetails.requestId}`;
     const declineUrl = `${FRONTEND_URL}/business/decline/${bookingDetails.requestId}`;
 
     console.log('📧 SENDING BUSINESS EMAIL:', {
@@ -154,7 +154,7 @@ const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
           
           <div style="text-align: center; margin: 30px 0;">
             <a href="${acceptUrl}" 
-               style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; margin-right: 15px; font-weight: bold;">
+               style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; margin-right: 15px; margin-bottom: 10px; font-weight: bold;">
               Accept & Enter Quote
             </a>
             <a href="${declineUrl}" 
@@ -177,8 +177,7 @@ const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
     await transporter.sendMail(mailOptions);
     console.log('✅ Booking Request Email Sent:', {
       businessEmail,
-      requestId: bookingDetails.requestId,
-      timestamp: new Date().toISOString()
+      requestId: bookingDetails.requestId
     });
   } catch (error) {
     console.error('❌ Booking Request Email Error:', error);

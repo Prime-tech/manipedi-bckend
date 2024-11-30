@@ -124,19 +124,42 @@ exports.declineBookingRequest = async (req, res) => {
 exports.handleEmailAccept = async (req, res) => {
   try {
     const { requestId } = req.params;
+    
+    // Verify the request exists and is still pending
+    const request = await prisma.bookingRequest.findUnique({
+      where: { id: requestId },
+      include: { booking: true }
+    });
 
-    // Redirect to the frontend with the requestId
+    if (!request) {
+      return res.redirect(`${process.env.FRONTEND_URL}/error?message=Invalid request`);
+    }
+
+    if (request.status !== 'PENDING') {
+      return res.redirect(`${process.env.FRONTEND_URL}/error?message=Request already processed`);
+    }
+
+    // Redirect to the quote form
     res.redirect(`${process.env.FRONTEND_URL}/business/quote/${requestId}`);
 
   } catch (error) {
     console.error('❌ EMAIL ACCEPT ERROR:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/error`);
+    res.redirect(`${process.env.FRONTEND_URL}/error?message=Something went wrong`);
   }
 };
 
 exports.handleEmailDecline = async (req, res) => {
   try {
     const { requestId } = req.params;
+
+    // Verify the request exists and is still pending
+    const request = await prisma.bookingRequest.findUnique({
+      where: { id: requestId }
+    });
+
+    if (!request || request.status !== 'PENDING') {
+      return res.redirect(`${process.env.FRONTEND_URL}/error?message=Invalid or already processed request`);
+    }
 
     // Update the booking request status
     await prisma.bookingRequest.update({
@@ -145,10 +168,10 @@ exports.handleEmailDecline = async (req, res) => {
     });
 
     // Redirect to confirmation page
-    res.redirect(`${process.env.FRONTEND_URL}/business/declined`);
+    res.redirect(`${process.env.FRONTEND_URL}/business/declined?requestId=${requestId}`);
 
   } catch (error) {
     console.error('❌ EMAIL DECLINE ERROR:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/error`);
+    res.redirect(`${process.env.FRONTEND_URL}/error?message=Something went wrong`);
   }
 };
