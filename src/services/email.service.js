@@ -142,6 +142,9 @@ const sendBookingRequestEmail = async (businessEmail, bookingDetails) => {
       declineUrl
     });
 
+    // Create transporter using the createTransporter function
+    const transporter = await createTransporter();
+
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: businessEmail,
