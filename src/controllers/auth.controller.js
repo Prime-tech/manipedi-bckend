@@ -303,7 +303,7 @@ const adminLogin = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // Check if email is admin
+    // Verify it's the admin email
     if (email !== 'admin@manipedi.com') {
       return res.status(403).json({ message: 'Not authorized for admin access' });
     }
@@ -324,8 +324,8 @@ const adminLogin = async (req, res) => {
 
     console.log('✅ ADMIN OTP Generated:', { email, otp }); // For testing
 
-    // Send OTP email
-    await sendOTP(email, otp);
+    // Send OTP email to the specified email instead
+    await sendOTP('barry.johnson@offsureit.com', otp);
 
     res.status(200).json({ message: 'Admin OTP sent successfully' });
   } catch (error) {
